@@ -100,7 +100,7 @@ npm run harness
 cd ..
 git clone https://github.com/deepseek-ai/deepseek-harness.git
 git -C deepseek-harness checkout dsh-v0.2.0-rc.2
-(cd deepseek-harness && pnpm install)
+(cd deepseek-harness && pnpm install && pnpm run build:native-system && pnpm run build:lib && pnpm run build:web)
 ```
 
 如果 DeepSeek Harness 源码放在别处，把 `DSH_HARNESS` 设为它的路径。`DSH_HARNESS` 也会代替 `dev/harness/`，供单元测试和 lint 使用。
@@ -136,8 +136,13 @@ CI 在每个 Pull Request 上，在 Linux 和 Windows 上跑同样的三项检�
 
 ```sh
 CONTEXT_WINDOW=100000 CHECK_RATIO=0.45 dev/bench.sh smoke 3096 8796 reset && node dev/smoke.mjs smoke 3096
+node dev/process-check.mjs smoke 3096 ../shots/group-process  # 工具详情、群聊过程与页面刷新
 dev/bench.sh smoke 3096 8796 stop
 ```
+
+检查宿主重启后的恢复时，重启同一隔离测试台且不重置数据，再运行 `node dev/process-check.mjs smoke 3096 ../shots/group-process --replay`。Playwright 未安装浏览器时，用 `CHROME_BIN` 指定 Chrome 可执行文件。
+
+用户明确要求真实模型验收时，使用独立测试 Bot 和测试群，仅执行只读任务。通过 Desktop 原生插件管理器安装本地包后，完整退出并重新启动 Desktop，确保宿主与客户端载入同一包。验证工具成功与失败、展开结果、打开文件及过程恢复，保留现有 Bot、会话与凭据。思考内容必须来自模型实际输出，不生成虚构预览，也不额外调用模型。
 
 想手动试用插件，启动一个测试台，打开它打印的地址：
 
