@@ -6,6 +6,8 @@ All notable changes to DS Bot are listed here. The format follows [Keep a Change
 
 ### Added
 
+- **Execution process**: Bot and group chats reuse DSH’s native tool, reasoning and completed-turn renderers, including their icons, summaries, disclosures and specialized result views. Group chats show each member’s process for the round, including program sub-calls and model retries; finished records are replayed from the member’s group Sessions after a reload or restart. Reasoning requires actual model output; displaying it makes no extra model requests.
+
 - **Group permissions**: a group chat can run all its members with one permission preset (Read only, Workspace or Full access) in place of each member's own. Turn on **Same for every member** under Permissions in the group's settings; the group's details show the preset while it is on. Members' conversations in the group change at once, and a member's later conversations there start on it. Turned off, each member works with its own preset again.
 
 ### Changed

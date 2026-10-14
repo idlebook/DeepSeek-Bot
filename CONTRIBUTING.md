@@ -39,7 +39,7 @@ For the test bench, add the DeepSeek Harness checkout next to the plugin folder 
 cd ..
 git clone https://github.com/deepseek-ai/deepseek-harness.git
 git -C deepseek-harness checkout dsh-v0.2.0-rc.2
-(cd deepseek-harness && pnpm install)
+(cd deepseek-harness && pnpm install && pnpm run build:native-system && pnpm run build:lib && pnpm run build:web)
 ```
 
 If your DeepSeek Harness checkout is somewhere else, set `DSH_HARNESS` to its path. `DSH_HARNESS` also takes the place of `dev/harness/` for the unit tests and the linter.
@@ -75,8 +75,13 @@ For a change to the server side (`index.js`, `src/host/`), also run the smoke te
 
 ```sh
 CONTEXT_WINDOW=100000 CHECK_RATIO=0.45 dev/bench.sh smoke 3096 8796 reset && node dev/smoke.mjs smoke 3096
+node dev/process-check.mjs smoke 3096 ../shots/group-process  # tool details, group process and page reload
 dev/bench.sh smoke 3096 8796 stop
 ```
+
+For a host-restart replay check, restart the same isolated bench without resetting its data, then run `node dev/process-check.mjs smoke 3096 ../shots/group-process --replay`. Set `CHROME_BIN` to your Chrome executable when Playwright has no browser installed.
+
+When the user explicitly requests real-model acceptance, use separate test Bots and a test group with read-only tasks. After installing the local package through Desktop's native plugin manager, fully quit and restart Desktop so both the Host and client load the same package. Verify successful and failed tools, expanded results, file opening and process replay; leave existing Bots, conversations and credentials intact. Reasoning must come from the provider's actual output, never a fabricated preview or an extra model request.
 
 To try the plugin by hand, start a bench and open the address that it prints:
 

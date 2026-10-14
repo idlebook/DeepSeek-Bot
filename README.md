@@ -62,6 +62,8 @@ DS Bot has group chats. A group chat is a great way to get several bots to work 
 
 Any bot can hand work to another bot with @. That bot does the work on its own, and the group goes on. While it works, it keeps the group posted, and the group, the sidebar and its own chat show what it is doing. When it is done, it posts the result in the group, and the bot that asked for the work answers. To stop the work, open the group's details.
 
+Each member’s **Execution process** appears in the group while it works. Bot and group chats reuse DSH’s registered native tool, reasoning and completed-turn renderers through the public Slot registry, including localized icons, summaries, disclosure controls, and the built-in read, terminal, search and web result views. Expand a tool to read its input and output; failures, interruptions and model retries remain visible. Reasoning appears only when the model returns it. Reloading the chat replays finished group processes from the group-only Session logs; older rounds created before this feature have no process association. This display makes no additional model requests. The integration is tested against the pinned DSH version below; it does not import private DSH implementation files.
+
 ![Group chat: the admin, Chief, hands the work to Writer and Coder](docs/images/group.png)
 
 ### Capabilities

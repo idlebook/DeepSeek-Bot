@@ -369,6 +369,7 @@ function decide(body) {
     if (mentioner) return [text('进度正常，今天能交。')]
     if (/安排/.test(userLine)) return [text(leads && peer ? `@${peer} 你先说说进度。` : '[PASS]')]
     if (/讨论/.test(userLine)) return [text(leads ? '@all 大家各说一句。' : '我觉得可以。')]
+    if (/思考/.test(userLine)) return [think('先核对群聊的目标与约束，再给出下一步。'), text('目标和约束已核对，下一步读取证据。')]
     return [text(`${me}：${leads ? '我是群管理员，需要拍板时找我。' : '我负责自己那一摊，有需要直接点我。'}`)]
   }
   // Secret cards: ask for a key, and use it once the card says it is saved or allowed.

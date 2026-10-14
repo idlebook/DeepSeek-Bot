@@ -33,10 +33,12 @@ import { ABOUT_CSS } from './about.js'
 import { MEMBER_CSS, MemberDock } from './member-status.js'
 import { USER_MESSAGE_CSS, UserMessageCell, canDrawUserMessages } from './user-message.js'
 import { noticeApprovals } from './approval-notices.js'
+import { nativeProcess } from './native-process.js'
 
-export const inject = ['sessions', 'uiWorkspace', 'uiConversation', 'slots', 'theme', 'layout']
+export const inject = ['sessions', 'uiSession', 'uiWorkspace', 'uiConversation', 'slots', 'theme', 'layout']
 
 export function apply(ctx) {
+  const process = nativeProcess(ctx)
   ctx.effect(() => installLocale(ctx.get('locale')), 'ds-bot: interface copy')
   const roster = createSource(EMPTY_ROSTER)
   migrateStorage()
@@ -551,6 +553,7 @@ export function apply(ctx) {
     scheduleDelete: (sessionId, id) => call('schedule-delete', { sessionId, id }),
     exchange: (a, b) => call('exchange', { a, b }).catch(() => []),
     roomProgress: roomId => call('room-progress', { roomId }).catch(() => []),
+    roomProcess: (roomId, callId) => call('room-process', { roomId, callId }),
     earlier: (sessionId, cursor) => call('earlier', { sessionId, cursor: cursor ?? null }),
     // Hours come back in this browser's time zone, so days start at local midnight.
     usage: () => call('usage', { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }),
@@ -690,6 +693,9 @@ export function apply(ctx) {
   const browserPages = browsers?.pages ?? createSource({})
   const browserTabs = browsers?.tabs ?? createSource({})
   const face = () => ({ actions, hooks: { roster, ui, activity, work, memoryNews, registry, turnClock, live, cards, browserPages, browserTabs, surface, update } })
+  actions.processTool = process.tool
+  actions.processReasoning = process.reasoning
+  actions.processTurn = process.turn
   ctx.effect(() => noticeApprovals({
     work,
     roster,

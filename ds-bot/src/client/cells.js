@@ -10,6 +10,7 @@ import { SecretToolCell } from './secret-card.js'
 import { dateLocale, t } from './i18n.js'
 import { failureLabel } from './diagnostics.js'
 import { turnReasoning } from './turn-reasoning.js'
+import { GroupProcess } from './process.js'
 
 // -------------------------------------------------------------------------
 // Chat cells
@@ -100,12 +101,6 @@ function MessageTools({ text, name, sessionId, react, actions }) {
       item(t('Copy'), CopyIcon, copy), item(t('Download'), DownloadIcon, download)), document.body) : null)
 }
 
-function ThinkingRow({ text }) {
-  return h('details', { className: 'bt-think' },
-    h('summary', null, t('Thought it through')),
-    h('div', { className: 'bt-think-text' }, text))
-}
-
 // The files a finished turn changed or delivered, linked from inline code in its
 // reply as in DSH's own chat. DSH resolves them for the step that closes the turn.
 function useFileMentions({ node, openFile, fileMentions, useTurnData }) {
@@ -119,7 +114,8 @@ function useFileMentions({ node, openFile, fileMentions, useTurnData }) {
   }, [fileMentions, openFile, seq, tail, turn])
 }
 
-export function AssistantCell({ node, groupPart, sessionId, openFile, fileMentions, useTurnData, useRoster, useUi, useTurnSteps, useTurnContext, actions }) {
+export function AssistantCell(props) {
+  const { node, groupPart, sessionId, openFile, fileMentions, useTurnData, useRoster, useUi, useTurnSteps, useTurnContext, actions } = props
   const roster = useRoster(value => value)
   const data = node.data
   const steps = useTurnSteps(String(data.turn))
@@ -150,7 +146,7 @@ export function AssistantCell({ node, groupPart, sessionId, openFile, fileMentio
         whole: true,
       })
     }),
-    reasoning ? h(ThinkingRow, { text: reasoning }) : null,
+    reasoning ? actions.processReasoning(reasoning, (steps.length ? steps : [data]).some(step => step.status === 'running'), { sessionId, nativeOwner: props }) : null,
     texts.length ? h(Bubbles, { texts, roster, selfId, actions, streaming: running, sessionId, msgKey: `${sessionId}:${data.turn}:${node.key ?? data.seq ?? ''}`, useUi, mentions }) : null)
 }
 
@@ -398,14 +394,12 @@ function NewDivider() {
   return h('div', { className: 'bt-new-sep', role: 'separator', 'aria-label': t('New messages') }, h('span', null, t('New')))
 }
 
-export function TurnProcessCell({ node, sessionId, turnProcess, useRoster, useUi, useTurnClock, actions }) {
-  const open = turnProcess === undefined || !turnProcess.foldable || turnProcess.open
-  useEffect(() => {
-    if (!open) turnProcess.setOpen(true)
-  }, [open, turnProcess])
+export function TurnProcessCell(props) {
+  const { node, sessionId, turnProcess, useRoster, useUi, useTurnClock, actions } = props
   const turn = node?.location?.turn?.turn ?? node?.data?.turn
   const start = node?.location?.turn?.start?.time
   const hidden = useRoster(roster => isHiddenTurn(roster, sessionId, turn))
+  const room = useRoster(roster => Boolean(roster.roomsById[sessionId]))
   // Exchange turns hide their replies but still show their trigger chip, so their start
   // counts for separators too.
   useEffect(() => {
@@ -418,7 +412,9 @@ export function TurnProcessCell({ node, sessionId, turnProcess, useRoster, useUi
     return !hidden && typeof visit?.seen === 'number' && own?.first !== undefined && own.first <= visit.seen
       && own.end !== undefined && own.end > visit.seen && own.end <= visit.entered
   })
-  return fresh ? h(NewDivider) : null
+  return h(Fragment, null,
+    fresh ? h(NewDivider) : null,
+    !hidden && !room && turnProcess ? actions.processTurn?.({ node, sessionId, turnProcess, nativeOwner: props }) : null)
 }
 
 export function Nothing() { return null }
@@ -583,11 +579,12 @@ function GroupReplies({ sessionId, callId, done, content, roster, actions, useUi
   }
   // Members speak one at a time, so only the current speaker is typing.
   const pending = done || !live.speaking ? [] : [live.speaking]
-  const speakerTool = useWork?.(work => work.bots?.[live.speaking]?.tool) ?? undefined
-  const speakerDoing = useWork?.(work => (work.bots?.[live.speaking]?.tool ? workPhrase(work.bots[live.speaking]) : undefined)) ?? undefined
-  if (replies.length === 0 && pending.length === 0) return null
+  const speakerWork = useWork?.(work => work.rooms?.[sessionId]?.find(member => member.botId === live.speaking))
+  const speakerTool = speakerWork?.tool
+  const speakerDoing = speakerTool ? workPhrase(speakerWork) : undefined
   const room = roster.roomsById[sessionId]
   return h('div', { className: 'bt-group-replies' },
+    h(GroupProcess, { roomId: sessionId, callId, done, actions }),
     stackReplies(replies).map(({ reply, index, texts }) => {
       const bot = roster.byId[reply.botId] ?? { id: reply.botId, name: reply.name, color: reply.color ?? 'gray' }
       if (reply.kind === 'user') {
@@ -630,9 +627,6 @@ function GroupReplies({ sessionId, callId, done, content, roster, actions, useUi
     }))
 }
 
-// The calls ToolCell draws. A PTC program (`run_code`) dispatches the real tools as
-// its sub-calls, so a call draws by its own name wherever it sits in the tree.
-const DRAWN = new Set(['message_bot', 'stop_bot', 'create_bot', 'update_bot', 'group_relay', 'create_group', 'update_group', 'delete_group', 'post_to_group', 'ask_user', 'request_secret', 'ask_user_question', 'read_group_chat', 'remember', 'forget'])
 // Calls whose card a dock above the composer carries when the call is not drawn.
 const CARDS = new Set(['ask_user', 'request_secret'])
 
@@ -663,7 +657,7 @@ function useShownCards(actions, sessionId, callIds) {
   }, [sessionId, key])
 }
 
-function renderCall(call, { sessionId, roster, actions, useUi, useWork, findBot }) {
+function renderCall(call, { sessionId, roster, actions, useUi, useWork, findBot, nativeOwner }) {
   const tool = toolName(call)
   const done = call.kind === 'tool-result'
   const { text: arg, value: argValue } = toolArgs(call)
@@ -735,25 +729,26 @@ function renderCall(call, { sessionId, roster, actions, useUi, useWork, findBot 
     case 'forget':
       return done && !call.isError ? h(MemoryEvent, { sessionId, scope: arg('scope'), result: contentText(call.content), roster, actions, findBot }) : null
     default:
-      return null
+      return actions.processTool(call, { sessionId, nativeOwner })
   }
 }
 
-export function ToolCell({ node, sessionId, useRoster, useUi, useWork, actions }) {
+export function ToolCell(props) {
+  const { node, sessionId, useRoster, useUi, useWork, actions } = props
   const roster = useRoster(value => value)
   const root = node.data.root
   const turn = node.location?.turn?.turn ?? root.turn
   const hidden = isHiddenTurn(roster, sessionId, turn)
   const findBot = nameOrId => roster.byId[nameOrId] ?? roster.bots.find(bot => bot.name.toLowerCase() === String(nameOrId ?? '').toLowerCase())
   const calls = hidden ? [] : callTree(root)
-  const drawn = calls.filter(call => DRAWN.has(toolName(call)))
+  const drawn = calls.filter(call => toolName(call) && (toolName(call) !== 'run_code' || !call.subCalls?.length))
   // The newest call still running names the work, so a program reads as the tool it is in.
   const running = root.kind === 'tool-result' ? undefined : calls.findLast(call => call.kind !== 'tool-result')
   const note = running ? toolActivity(toolName(running), toolArgs(running).text, findBot, roster.byId[sessionId]) : null
-  // A running tool shows only as the activity row's phrase.
+  // The activity row and the transcript share the current tool.
   useLiveNote(actions, sessionId, `tool:${root.callId ?? node.key}`, note)
   useShownCards(actions, sessionId, drawn.filter(call => CARDS.has(toolName(call)) && call.callId).map(call => call.callId))
   if (drawn.length === 0) return null
-  const env = { sessionId, roster, actions, useUi, useWork, findBot }
+  const env = { sessionId, roster, actions, useUi, useWork, findBot, nativeOwner: props }
   return h(Fragment, null, drawn.map((call, index) => h(Fragment, { key: call.callId ?? index }, renderCall(call, env))))
 }

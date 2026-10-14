@@ -201,6 +201,7 @@ export function install(rt) {
     const exchangeId = randomUUID()
     const turn = { botId: member.id, sessionId, exchangeId }
     const { started } = round
+    const process = rt.beginGroupProcess?.(room, member, sessionId, exchangeId, round.callId)
     started.push(turn)
     room.seen[member.id] = room.seq
     // Checked before the delivery, which may start the turn at once.
@@ -236,6 +237,7 @@ export function install(rt) {
       // Still at earlier work: the call waits in its inbox and is answered after that.
       else if (busy) rt.roomWaiters.get(exchangeId)?.resolve({ working: true })
     } catch (error) {
+      if (process) process.status = 'failed'
       rt.warn('ds-bot: group delivery to %s failed: %s', member.name, error)
       rt.roomWaiters.get(exchangeId)?.resolve(null)
     }
@@ -433,6 +435,7 @@ export function install(rt) {
       // A member a Bot's post calls by name works for that Bot.
       const named = opener.botId === undefined ? [] : mentionsIn(opener.text ?? '', room.members.map(rt.botOf).filter(Boolean)).found
       const round = {
+        callId: exec.callId,
         roomId: room.id,
         members: room.members,
         startSeq,

@@ -95,9 +95,12 @@ test('a member\'s messages in a row stack under its name, and an event line star
   assert.deepEqual(JSON.parse(JSON.stringify(stackReplies(replies).map(item => [item.index, item.texts]))), [[0, ['a', 'b']], [2, []], [3, ['c']], [4, ['d']], [5, ['e']]])
 })
 
-const props = (root, { sessionId = chief.id, roster = team(), actions = {}, turn = 1 } = {}) => ({
+const props = (root, { sessionId = chief.id, roster = team(), actions = {}, turn = 1, work = { bots: {}, rooms: {} } } = {}) => ({
   node: { key: 'node', data: { root }, location: { turn: { turn } } }, sessionId,
-  useRoster: select => select(roster), useUi: select => select({ reactions: {}, visits: {} }), actions,
+  useRoster: select => select(roster), useUi: select => select({ reactions: {}, visits: {} }), useWork: select => select(work), actions: {
+    processTool: call => h('native-tool', null, call.name ?? call.call?.name, call.argsRaw ?? call.call?.argsRaw, call.kind === 'tool-result' ? call.isError ? 'Failed' : 'Completed' : 'Running'),
+    ...actions,
+  },
 })
 const show = (root, options) => {
   const out = expand(ToolCell(props(root, options)))
@@ -178,10 +181,10 @@ test('each sub-call shows its own state, not its program\'s', () => {
   assert.match(shown(program([refused, posted])), /Couldn't post in the group.*Posted in.*Ops/)
 })
 
-test('a program with no known sub-call draws nothing, as before', () => {
-  assert.equal(ToolCell(props(program([]))), null)
-  assert.equal(ToolCell(props(program([call('bash', 'program:ptc:1'), call('read_file', 'program:ptc:2')]))), null)
-  assert.equal(ToolCell(props(call('bash', 'direct'))), null)
+test('ordinary tools and PTC programs expose execution details', () => {
+  assert.match(shown(program([])), /run_code.*Completed/)
+  assert.match(shown(program([call('bash', 'program:ptc:1'), call('read_file', 'program:ptc:2')])), /bash.*Completed.*read_file.*Completed/)
+  assert.match(shown(call('bash', 'direct', { running: true })), /bash.*Running/)
   effects = []
 })
 
@@ -377,4 +380,14 @@ test('a goal round draws nothing, while another unknown trigger keeps its event 
   }))
   assert.equal(trigger({ kind: 'goal', goalId: 'goal-1', revision: 1, round: 1 }), null)
   assert.match(text(trigger({ kind: 'webhook' })), /<goal_round>Keep going/)
+})
+
+test('group progress uses the group Session even when the member also works privately', () => {
+  const original = react.useState
+  react.useState = initial => initial && 'speaking' in initial ? [{ ...initial, speaking: chief.id }, () => {}] : original(initial)
+  try {
+    const out = shown(call('group_relay', 'live', { running: true }), { sessionId: 'room', work: { bots: { chief: { tool: 'read' } }, rooms: { room: [{ botId: chief.id, tool: 'bash' }] } } })
+    assert.match(out, /Running shell commands/)
+    assert.doesNotMatch(out, /Reading/)
+  } finally { react.useState = original }
 })

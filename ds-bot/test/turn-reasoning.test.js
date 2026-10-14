@@ -18,10 +18,10 @@ test('the row sits on the first step with reasoning', () => {
   assert.deepEqual(steps.map(current => turnReasoning(steps, current)), ['', 'B\n\nC', ''])
 })
 
-test('reasoning still in progress stays out until its step settles', () => {
+test('reasoning is visible while streaming and settles without duplication', () => {
   const steps = [step(1, [think('A'), tool]), step(2, [think('B')], 'running')]
-  assert.equal(turnReasoning(steps, steps[0]), 'A')
-  assert.equal(turnReasoning([step(1, [think('A')], 'running')], step(1, [think('A')], 'running')), '')
+  assert.equal(turnReasoning(steps, steps[0]), 'A\n\nB')
+  assert.equal(turnReasoning([step(1, [think('A')], 'running')], step(1, [think('A')], 'running')), 'A')
   steps[1].blocks.push({ kind: 'text', text: 'Reply' })
   assert.equal(turnReasoning(steps, steps[0]), 'A\n\nB')
 })
